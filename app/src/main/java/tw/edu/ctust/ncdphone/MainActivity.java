@@ -22,7 +22,7 @@ public class MainActivity extends Activity {
     float swipeX,swipeY;boolean pageGesture,swiping;
     EditText caregiverField, secondsField;
     TextView saveStatus;
-    LinearLayout root,grid; TextView pages;
+    LinearLayout root,grid,shortcutRow; TextView pages;
     Store.Person editing; EditText name,phone,line; String photo="";
     BannerController ads;LocalWeather weather;
     TextView clockText,dateText,weatherText;WeatherIcon weatherIcon;
@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle out){if(screen.equals("edit")){stashEdit();out.putString("editId",editing.id);out.putString("editName",editing.name);out.putString("editPhone",editing.phone);out.putString("editLine",editing.line);out.putString("editPhoto",editing.photo);}super.onSaveInstanceState(out);}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);if(!PhoneService.busy())home();handleIntent(i);}
     void handleIntent(Intent i){if(i.getBooleanExtra("previewIncoming",false)){i.removeExtra("previewIncoming");previewIncoming();return;}if(Intent.ACTION_DIAL.equals(i.getAction())){dialPad(i.getData()==null?"":i.getData().getSchemeSpecificPart());}}
-    @Override protected void onResume(){super.onResume();resumed=true;foregroundActive=true;touching=false;activity();AssistService.settingsUntil=0;handler.removeCallbacks(tick);handler.postDelayed(tick,1000);if(PhoneService.busy()){startActivity(new Intent(this,CallActivity.class));return;}if(screen.equals("home")){renderGrid();scheduleRotation();updateClock();weather.start(this::showWeather);ads.resume();}}
+    @Override protected void onResume(){super.onResume();resumed=true;foregroundActive=true;touching=false;activity();AssistService.settingsUntil=0;handler.removeCallbacks(tick);handler.postDelayed(tick,1000);if(PhoneService.busy()){startActivity(new Intent(this,CallActivity.class));return;}if(screen.equals("home")){refreshShortcut();renderGrid();scheduleRotation();updateClock();weather.start(this::showWeather);ads.resume();}}
     @Override protected void onPause(){saveSettings();resumed=false;foregroundActive=false;touching=false;handler.removeCallbacks(tick);handler.removeCallbacks(rotate);weather.stop();ads.pause();super.onPause();}
     @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);weather.destroy();ads.destroy();super.onDestroy();}
     void activity(){lastTouch=SystemClock.elapsedRealtime();if(AssistService.instance!=null)AssistService.instance.lastInput=lastTouch;}
@@ -74,12 +74,13 @@ public class MainActivity extends Activity {
     void turnPage(int direction){int count=Rules.pageCount(Store.people(this).size());page=Math.floorMod(page+direction,count);renderGrid();scheduleRotation();}
     @Override public void onBackPressed(){home();}
     void scheduleRotation(){handler.removeCallbacks(rotate);if(resumed&&screen.equals("home"))handler.postDelayed(rotate,10000);}
-    void base(String title){saveSettings();caregiverField=null;secondsField=null;saveStatus=null;handler.removeCallbacks(rotate);if(weather!=null)weather.stop();if(ads!=null)ads.pause();activity();ignoreUntil=SystemClock.elapsedRealtime()+500;root=Ui.root(this);if(!title.isEmpty())Ui.add(root,Ui.text(this,title,28));}
+    void base(String title){shortcutRow=null;saveSettings();caregiverField=null;secondsField=null;saveStatus=null;handler.removeCallbacks(rotate);if(weather!=null)weather.stop();if(ads!=null)ads.pause();activity();ignoreUntil=SystemClock.elapsedRealtime()+500;root=Ui.root(this);if(!title.isEmpty())Ui.add(root,Ui.text(this,title,28));}
     void home(){screen="home";page=0;base("");
         root.addView(ads.attach(),new LinearLayout.LayoutParams(-1,-2));
         LinearLayout bar=new LinearLayout(this);
         bar.addView(Ui.button(this,"⚙ 設定",Ui.BLUE,this::settings),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));
-        bar.addView(Ui.button(this,"ⓘ 開發者",Ui.BLUE,this::about),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));Ui.add(root,bar);
+        bar.addView(Ui.button(this,"ⓘ 開發者",Ui.BLUE,this::about),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));
+        ImageButton originalHome=new ImageButton(this);originalHome.setImageResource(R.drawable.ic_home);originalHome.setBackground(Ui.bg(Ui.BLUE));originalHome.setPadding(Ui.dp(this,10),Ui.dp(this,10),Ui.dp(this,10),Ui.dp(this,10));originalHome.setContentDescription("開啟原桌面");Ui.forgiving(originalHome,()->AppShortcuts.openHome(this));bar.addView(originalHome,new LinearLayout.LayoutParams(Ui.dp(this,48),Ui.dp(this,52)));Ui.add(root,bar);
         LinearLayout info=new LinearLayout(this);root.addView(info,new LinearLayout.LayoutParams(-1,Ui.dp(this,180)));
         LinearLayout clockPanel=new LinearLayout(this);clockPanel.setOrientation(LinearLayout.VERTICAL);clockPanel.setBackground(Ui.bg(android.graphics.Color.WHITE));info.addView(clockPanel,new LinearLayout.LayoutParams(0,-1,1));
         clockText=Ui.text(this,"",60);clockText.setTextColor(Ui.NAVY);clockText.setTypeface(null,android.graphics.Typeface.BOLD);clockText.setMaxLines(1);clockText.setAutoSizeTextTypeUniformWithConfiguration(24,80,2,android.util.TypedValue.COMPLEX_UNIT_SP);
@@ -88,8 +89,18 @@ public class MainActivity extends Activity {
         weatherIcon=new WeatherIcon(this);weatherRow.addView(weatherIcon,new LinearLayout.LayoutParams(-1,0,1));
         weatherText=Ui.text(this,"正在取得當地氣象",24);weatherText.setTextColor(Ui.NAVY);weatherText.setMaxLines(3);weatherText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);weatherRow.addView(weatherText,new LinearLayout.LayoutParams(-1,0,1.4f));Ui.forgiving(weatherRow,this::weatherDetails);
         root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int available=v.getHeight()-v.getPaddingTop()-v.getPaddingBottom();int h=Math.round(available*.20f);if(h>0&&info.getLayoutParams().height!=h){info.getLayoutParams().height=h;info.requestLayout();}});
+        shortcutRow=new LinearLayout(this);root.addView(shortcutRow,new LinearLayout.LayoutParams(-1,-2));refreshShortcut();
         grid=new LinearLayout(this);grid.setOrientation(LinearLayout.VERTICAL);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         pages=Ui.text(this,"",18);Ui.add(root,pages);renderGrid();scheduleRotation();updateClock();if(resumed)weather.start(this::showWeather);
+    }
+    void refreshShortcut(){
+        if(shortcutRow==null)return;shortcutRow.removeAllViews();android.content.pm.ResolveInfo app=AppShortcuts.selected(this);
+        shortcutRow.setVisibility(app==null?View.GONE:View.VISIBLE);if(app==null)return;
+        LinearLayout button=new LinearLayout(this);button.setGravity(Gravity.CENTER_VERTICAL);button.setBackground(Ui.bg(Ui.BLUE));button.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),0);
+        String label=app.loadLabel(getPackageManager()).toString();button.setContentDescription("開啟 "+label);
+        ImageView icon=new ImageView(this);icon.setImageDrawable(app.loadIcon(getPackageManager()));icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);button.addView(icon,new LinearLayout.LayoutParams(Ui.dp(this,40),Ui.dp(this,40)));
+        TextView text=Ui.text(this,label,26);text.setMaxLines(1);text.setAutoSizeTextTypeUniformWithConfiguration(18,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);button.addView(text,new LinearLayout.LayoutParams(0,-1,1));
+        Ui.forgiving(button,()->AppShortcuts.openShortcut(this));LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(-1,Ui.dp(this,60));layout.setMargins(0,Ui.dp(this,4),0,Ui.dp(this,4));shortcutRow.addView(button,layout);
     }
     void updateClock(){if(clockText==null)return;Date now=new Date();String period=new java.text.SimpleDateFormat("a",Locale.TAIWAN).format(now);android.text.SpannableString time=new android.text.SpannableString(period+" "+new java.text.SimpleDateFormat("h:mm",Locale.TAIWAN).format(now));time.setSpan(new android.text.style.AbsoluteSizeSpan(20,true),0,period.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);time.setSpan(new android.text.style.ForegroundColorSpan(Ui.RED),0,period.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);clockText.setText(time);dateText.setText(new java.text.SimpleDateFormat("M月d日\nEEEE",Locale.TAIWAN).format(now));}
     void showWeather(LocalWeather.Snapshot value,String status){if(!screen.equals("home")||weatherText==null)return;
@@ -151,6 +162,11 @@ public class MainActivity extends Activity {
     }
     void settings(){screen="settings";LinearLayout c=form("照顧者設定");
         Ui.add(c,Ui.button(this,"管理通訊錄",Ui.GREEN,this::contacts));
+        Ui.add(c,Ui.text(this,"首頁 App 快捷鍵",26));
+        android.content.pm.ResolveInfo selected=AppShortcuts.selected(this);String saved=Store.prefs(this).getString(AppShortcuts.KEY,"");
+        Ui.add(c,Ui.text(this,selected==null?(saved.isEmpty()?"尚未設定（首頁隱藏）":"原 App 無法使用，請重新選擇"):"目前："+selected.loadLabel(getPackageManager()),22));
+        Ui.add(c,Ui.button(this,"選擇／變更 App 快捷鍵",Ui.BLUE,()->AppShortcuts.choose(this,this::settings)));
+        Button clear=Ui.button(this,"清除 App 快捷鍵",Ui.RED,()->{Store.prefs(this).edit().remove(AppShortcuts.KEY).apply();settings();});clear.setEnabled(!saved.isEmpty());Ui.add(c,clear);
         caregiverField=field(c,"照顧者電話（定位簡訊收件人）",Store.prefs(this).getString("caregiver",""),3);
         secondsField=field(c,"閒置返回秒數（15～3600）",""+Store.prefs(this).getInt("idleSeconds",60),2);
         saveStatus=Ui.text(this,"設定會自動儲存",18);Ui.add(c,saveStatus);

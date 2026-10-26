@@ -13,7 +13,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
-    <queries><package android:name="jp.naver.line.android" /></queries>
+    <queries>
+        <package android:name="jp.naver.line.android" />
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.HOME" /></intent>
+    </queries>
     <application android:label="NCDPhone" android:theme="@style/AppTheme" android:icon="@drawable/ic_phone" android:allowBackup="false" android:dataExtractionRules="@xml/backup_rules" android:supportsRtl="true">
         <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="${admobAppId}" />
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
