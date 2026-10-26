@@ -2,6 +2,7 @@ package tw.edu.ctust.ncdphone;
 
 /** Pure policy rules also exercised by the standalone JVM checks. */
 final class Rules {
+    static boolean isPageSwipe(float dx,float dy,float threshold){return Math.abs(dx)>=threshold&&Math.abs(dx)>Math.abs(dy)*1.5f;}
     static boolean sameLineName(String a,String b){return a!=null&&b!=null&&!a.trim().isEmpty()&&a.trim().equalsIgnoreCase(b.trim());}
     static String normalize(String value) {
         String s=value==null?"":value.replaceAll("[^0-9+]", "");

@@ -19,6 +19,7 @@ public class MainActivity extends Activity {
     static boolean foregroundActive;
     final Handler handler=new Handler(Looper.getMainLooper());
     String screen="home"; int page=0; long lastTouch, ignoreUntil; boolean resumed, touching;
+    float swipeX,swipeY;boolean pageGesture,swiping;
     EditText caregiverField, secondsField;
     TextView saveStatus;
     LinearLayout root,grid; TextView pages;
@@ -49,7 +50,24 @@ public class MainActivity extends Activity {
     void activity(){lastTouch=SystemClock.elapsedRealtime();if(AssistService.instance!=null)AssistService.instance.lastInput=lastTouch;}
     @Override public void onUserInteraction(){super.onUserInteraction();activity();}
     @Override public boolean dispatchKeyEvent(KeyEvent e){activity();return super.dispatchKeyEvent(e);}
-    @Override public boolean dispatchTouchEvent(android.view.MotionEvent e){activity();if(e.getActionMasked()==MotionEvent.ACTION_DOWN)touching=true;if(e.getActionMasked()==MotionEvent.ACTION_UP||e.getActionMasked()==MotionEvent.ACTION_CANCEL)touching=false;if(lastTouch<ignoreUntil)return true;return super.dispatchTouchEvent(e);}
+    @Override public boolean dispatchTouchEvent(android.view.MotionEvent e){
+        activity();int action=e.getActionMasked();
+        if(action==MotionEvent.ACTION_DOWN){touching=true;swiping=false;pageGesture=false;swipeX=e.getX();swipeY=e.getY();
+            android.graphics.Rect bounds=new android.graphics.Rect();
+            pageGesture=screen.equals("home")&&grid!=null&&Rules.pageCount(Store.people(this).size())>1&&grid.getGlobalVisibleRect(bounds)&&bounds.contains((int)e.getRawX(),(int)e.getRawY());
+        }
+        if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL)touching=false;
+        if(lastTouch<ignoreUntil)return true;
+        if(pageGesture){
+            float dx=e.getX()-swipeX,dy=e.getY()-swipeY;
+            if(!swiping&&action==MotionEvent.ACTION_MOVE&&Rules.isPageSwipe(dx,dy,Ui.dp(this,72))){
+                swiping=true;MotionEvent cancel=MotionEvent.obtain(e);cancel.setAction(MotionEvent.ACTION_CANCEL);super.dispatchTouchEvent(cancel);cancel.recycle();
+            }
+            if(swiping){if(action==MotionEvent.ACTION_UP){turnPage(dx<0?1:-1);pageGesture=false;swiping=false;}else if(action==MotionEvent.ACTION_CANCEL){pageGesture=false;swiping=false;}return true;}
+        }
+        return super.dispatchTouchEvent(e);
+    }
+    void turnPage(int direction){int count=Rules.pageCount(Store.people(this).size());page=Math.floorMod(page+direction,count);renderGrid();scheduleRotation();}
     @Override public void onBackPressed(){home();}
     void scheduleRotation(){handler.removeCallbacks(rotate);if(resumed&&screen.equals("home"))handler.postDelayed(rotate,10000);}
     void base(String title){saveSettings();caregiverField=null;secondsField=null;saveStatus=null;handler.removeCallbacks(rotate);activity();ignoreUntil=SystemClock.elapsedRealtime()+500;root=Ui.root(this);Ui.add(root,Ui.text(this,title,28));}
@@ -57,28 +75,30 @@ public class MainActivity extends Activity {
         LinearLayout bar=new LinearLayout(this);
         bar.addView(Ui.button(this,"⚙ 設定",Ui.BLUE,this::settings),new LinearLayout.LayoutParams(0,Ui.dp(this,60),1));
         bar.addView(Ui.button(this,"ⓘ 開發者",Ui.BLUE,this::about),new LinearLayout.LayoutParams(0,Ui.dp(this,60),1));Ui.add(root,bar);
-        Ui.add(root,Ui.text(this,"請點選要聯絡的人",24));
+        Ui.add(root,Ui.text(this,"點選聯絡人 · 左右滑動換頁",22));
         grid=new LinearLayout(this);grid.setOrientation(LinearLayout.VERTICAL);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         pages=Ui.text(this,"",18);Ui.add(root,pages);renderGrid();scheduleRotation();
     }
     void renderGrid(){if(grid==null||!screen.equals("home"))return;grid.removeAllViews();ArrayList<Store.Person> list=Store.people(this);page%=Rules.pageCount(list.size());
         for(int r=0;r<2;r++){LinearLayout row=new LinearLayout(this);grid.addView(row,new LinearLayout.LayoutParams(-1,0,1));
             for(int col=0;col<2;col++) {int index=Rules.contactIndex(page,r*2+col,list.size());Store.Person p=index<0?null:list.get(index);
+                if(p==null){row.addView(new View(this),new LinearLayout.LayoutParams(0,-1,1));continue;}
                 LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);tile.setPadding(8,8,8,8);tile.setBackground(Ui.bg(Ui.BLUE));
                 LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-1,1);tp.setMargins(5,5,5,5);row.addView(tile,tp);
-                tile.addView(Ui.photo(this,p),new LinearLayout.LayoutParams(-1,0,1));TextView label=Ui.text(this,p==null?"新增聯絡人":p.name,28);label.setMaxLines(2);tile.addView(label);
-                tile.setContentDescription(p==null?"新增聯絡人":"聯絡 "+p.name);Ui.forgiving(tile,()->{if(p==null)edit(new Store.Person());else detail(p);});
+                tile.addView(Ui.photo(this,p),new LinearLayout.LayoutParams(-1,0,1));TextView label=Ui.text(this,p.name,28);label.setMaxLines(2);tile.addView(label);
+                tile.setContentDescription("聯絡 "+p.name);Ui.forgiving(tile,()->detail(p));
             }
         }
         pages.setText(list.isEmpty()?"在設定中加入家人或照顧者":"第 "+(page+1)+" / "+Rules.pageCount(list.size())+" 頁"+(list.size()>4?" · 每 10 秒換頁":""));
     }
     void detail(Store.Person p){screen="detail";base("聯絡家人");
-        // Allocate over half of the usable screen to the complete call target, including its icon and label.
+        // Keep the call target at one quarter of the usable screen, with the photo taking remaining space.
         LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.VERTICAL);
         top.addView(Ui.photo(this,p),new LinearLayout.LayoutParams(-1,0,1));top.addView(Ui.text(this,p.name,32));top.addView(Ui.text(this,p.line.isEmpty()?"一般電話":"LINE 視訊通話",20));
-        root.addView(top,new LinearLayout.LayoutParams(-1,0,0.27f));
-        View call=Ui.largeCall(this,()->{if(p.line.isEmpty())call(p.phone);else startLine(p.line);});root.addView(call,new LinearLayout.LayoutParams(-1,0,0.63f));
-        root.addView(Ui.button(this,"返回主畫面",Ui.RED,this::home),new LinearLayout.LayoutParams(-1,0,0.10f));
+        root.addView(top,new LinearLayout.LayoutParams(-1,0,1));
+        View call=Ui.largeCall(this,()->{if(p.line.isEmpty())call(p.phone);else startLine(p.line);});root.addView(call,new LinearLayout.LayoutParams(-1,Ui.dp(this,160)));
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int height=Math.round((v.getHeight()-v.getPaddingTop()-v.getPaddingBottom())*.25f);if(height>0&&call.getLayoutParams().height!=height){call.getLayoutParams().height=height;call.requestLayout();}});
+        Ui.add(root,Ui.button(this,"返回主畫面",Ui.RED,this::home));
     }
     void call(String number){
         if(!Rules.validPhone(number)){Ui.toast(this,"請輸入有效電話號碼");return;}
@@ -130,13 +150,13 @@ public class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT>=34)Ui.add(c,Ui.button(this,"設定／取消來電全螢幕通知",Ui.BLUE,()->openSettings(new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,Uri.parse("package:"+getPackageName())))));
         Ui.add(c,Ui.button(this,"授權狀態檢查",Ui.BLUE,()->{RoleManager rm=getSystemService(RoleManager.class);new AlertDialog.Builder(this).setTitle("目前狀態").setMessage("預設電話："+rm.isRoleHeld(RoleManager.ROLE_DIALER)+"\n預設桌面："+rm.isRoleHeld(RoleManager.ROLE_HOME)+"\n輔助操作："+(AssistService.instance!=null)+"\n背景定位："+(checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)==android.content.pm.PackageManager.PERMISSION_GRANTED)+"\n定位簡訊："+Store.prefs(this).getString("smsStatus","尚未觸發")).setPositiveButton("知道了",null).show();}));
         Ui.add(c,Ui.button(this,"數字撥號",Ui.BLUE,()->dialPad("")));
-        Ui.add(c,Ui.button(this,"測試 LINE 搜尋（不撥號）",Ui.BLUE,this::testLineSearch));
+        Ui.add(c,Ui.button(this,"測試 LINE 通話選單（不撥號）",Ui.BLUE,this::testLineSearch));
         Ui.add(c,Ui.text(this,Store.prefs(this).getString("lineStatus","尚未測試 LINE 搜尋"),18));
         Ui.add(c,Ui.button(this,"開啟系統設定",Ui.BLUE,()->openSettings(new Intent(Settings.ACTION_SETTINGS))));
         Ui.add(c,Ui.text(this,"LINE 請填寫聊天顯示名稱，名稱必須唯一。LINE 更新後須重新實機驗證。\n輔助操作與預設桌面負責返回主畫面；鎖定螢幕不會被繞過。側載 App 可能須在應用程式資訊允許受限制的設定。",20));
     }
     void toggle(LinearLayout c,String title,String key){Switch s=new Switch(this);s.setText(title);s.setTextSize(22);s.setTextColor(-1);s.setPadding(0,20,0,20);s.setChecked(Store.flag(this,key));s.setOnCheckedChangeListener((v,b)->Store.prefs(this).edit().putBoolean(key,b).apply());Ui.add(c,s);}
-    void testLineSearch(){ArrayList<String> names=new ArrayList<>();for(Store.Person p:Store.people(this))if(!p.line.isEmpty()&&!names.contains(p.line))names.add(p.line);if(names.isEmpty()){Ui.toast(this,"請先設定聯絡人的 LINE 顯示名稱");return;}new AlertDialog.Builder(this).setTitle("選擇搜尋測試對象（不撥號）").setItems(names.toArray(new String[0]),(d,w)->{if(AssistService.instance==null){Ui.toast(this,"請先啟用操作協助");return;}Intent i=getPackageManager().getLaunchIntentForPackage("jp.naver.line.android");if(i==null){Ui.toast(this,"尚未安裝 LINE");return;}AssistService.instance.beginLine(names.get(w),true);startActivity(i);}).setNegativeButton("取消",null).show();}
+    void testLineSearch(){ArrayList<String> names=new ArrayList<>();for(Store.Person p:Store.people(this))if(!p.line.isEmpty()&&!names.contains(p.line))names.add(p.line);if(names.isEmpty()){Ui.toast(this,"請先設定聯絡人的 LINE 顯示名稱");return;}new AlertDialog.Builder(this).setTitle("選擇通話選單測試對象（不撥號）").setItems(names.toArray(new String[0]),(d,w)->{if(AssistService.instance==null){Ui.toast(this,"請先啟用操作協助");return;}Intent i=getPackageManager().getLaunchIntentForPackage("jp.naver.line.android");if(i==null){Ui.toast(this,"尚未安裝 LINE");return;}AssistService.instance.beginLine(names.get(w),true);startActivity(i);}).setNegativeButton("取消",null).show();}
     void openSettings(Intent intent){saveSettings();AssistService.settingsUntil=SystemClock.elapsedRealtime()+30*60*1000L;try{startActivity(intent);}catch(ActivityNotFoundException e){startActivity(new Intent(Settings.ACTION_SETTINGS));}}
     void appSettings(){openSettings(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}
     void role(String role){RoleManager r=getSystemService(RoleManager.class);if(r.isRoleHeld(role)){openSettings(new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS));return;}if(r.isRoleAvailable(role)){AssistService.settingsUntil=SystemClock.elapsedRealtime()+30*60*1000L;startActivityForResult(r.createRequestRoleIntent(role),15);}else Ui.toast(this,"此裝置不支援此角色");}

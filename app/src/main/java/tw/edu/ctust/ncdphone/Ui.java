@@ -28,10 +28,10 @@ final class Ui {
         forgiving(b,action); return b;
     }
     static View largeCall(Context c,Runnable action){
-        LinearLayout tile=new LinearLayout(c);tile.setOrientation(LinearLayout.VERTICAL);tile.setGravity(Gravity.CENTER);tile.setBackground(bg(GREEN));tile.setPadding(dp(c,16),dp(c,12),dp(c,16),dp(c,12));
+        LinearLayout tile=new LinearLayout(c);tile.setOrientation(LinearLayout.HORIZONTAL);tile.setGravity(Gravity.CENTER);tile.setBackground(bg(GREEN));tile.setPadding(dp(c,16),dp(c,12),dp(c,16),dp(c,12));
         ImageView icon=new ImageView(c);icon.setImageResource(R.drawable.ic_phone);icon.setScaleType(ImageView.ScaleType.FIT_CENTER);icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        tile.addView(icon,new LinearLayout.LayoutParams(-1,0,1));
-        TextView label=text(c,"打電話",56);label.setTypeface(null,Typeface.BOLD);label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);tile.addView(label,new LinearLayout.LayoutParams(-1,0,1));
+        tile.addView(icon,new LinearLayout.LayoutParams(0,-1,1));
+        TextView label=text(c,"打電話",44);label.setAutoSizeTextTypeUniformWithConfiguration(28,44,2,android.util.TypedValue.COMPLEX_UNIT_SP);label.setMaxLines(1);label.setTypeface(null,Typeface.BOLD);label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);tile.addView(label,new LinearLayout.LayoutParams(0,-1,1));
         tile.setContentDescription("打電話");forgiving(tile,action);return tile;
     }
     // Execute once on release, tolerate long holds and movement inside bounds; suppress duplicate taps.
@@ -55,7 +55,7 @@ final class Ui {
     static ImageView photo(Context c,Store.Person p) {
         ImageView v=new ImageView(c);v.setScaleType(ImageView.ScaleType.CENTER_CROP);v.setBackground(bg(Color.rgb(219,231,245)));
         if(p!=null&&!p.photo.isEmpty()) {try{v.setImageURI(android.net.Uri.parse(p.photo));}catch(Exception ignored){} }
-        if(v.getDrawable()==null) {v.setImageResource(android.R.drawable.ic_menu_myplaces);v.setScaleType(ImageView.ScaleType.CENTER_INSIDE);v.setColorFilter(BLUE);}
+        if(v.getDrawable()==null) {v.setImageResource(R.drawable.ic_person_silhouette);v.setScaleType(ImageView.ScaleType.FIT_CENTER);int pad=dp(c,12);v.setPadding(pad,pad,pad,pad);}
         v.setContentDescription(p==null?"聯絡人照片":p.name+"的照片");return v;
     }
 }
