@@ -34,6 +34,14 @@ final class Ui {
         TextView label=text(c,"打電話",44);label.setAutoSizeTextTypeUniformWithConfiguration(28,44,2,android.util.TypedValue.COMPLEX_UNIT_SP);label.setMaxLines(1);label.setTypeface(null,Typeface.BOLD);label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);tile.addView(label,new LinearLayout.LayoutParams(0,-1,1));
         tile.setContentDescription("打電話");forgiving(tile,action);return tile;
     }
+    static View callControl(Context c,boolean answer,Runnable action){
+        LinearLayout row=new LinearLayout(c);row.setGravity(Gravity.CENTER);row.setBackground(bg(answer?GREEN:RED));row.setPadding(dp(c,20),dp(c,8),dp(c,20),dp(c,8));
+        String text=answer?"接聽":"掛斷";row.setContentDescription(text);
+        ImageView icon=new ImageView(c);icon.setImageResource(answer?R.drawable.ic_answer:R.drawable.ic_hangup);icon.setScaleType(ImageView.ScaleType.FIT_CENTER);icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(icon,new LinearLayout.LayoutParams(dp(c,96),-1));
+        TextView label=text(c,text,52);label.setTypeface(null,Typeface.BOLD);label.setMaxLines(1);label.setAutoSizeTextTypeUniformWithConfiguration(32,52,2,android.util.TypedValue.COMPLEX_UNIT_SP);label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);row.addView(label,new LinearLayout.LayoutParams(0,-1,1));
+        forgiving(row,action);return row;
+    }
     // Execute once on release, tolerate long holds and movement inside bounds; suppress duplicate taps.
     static void forgiving(View v,Runnable action) {
         final long[] last={-2000}; final boolean[] tracking={false},inside={false};
