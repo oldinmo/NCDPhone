@@ -1,0 +1,5 @@
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked|typeViewScrolled|typeViewTextChanged|typeTouchInteractionStart"
+    android:accessibilityFeedbackType="feedbackGeneric" android:notificationTimeout="150"
+    android:canRetrieveWindowContent="true" android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:description="@string/assist_description" android:settingsActivity="tw.edu.ctust.ncdphone.MainActivity" />

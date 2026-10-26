@@ -1,0 +1,11 @@
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#004C99</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#101D30</item>
+        <item name="android:navigationBarColor">#101D30</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+    <string name="assist_description">經您啟用後，協助在 LINE 搜尋指定聯絡人並撥視訊電話；可依設定在閒置、翻面或螢幕點亮時返回 NCDPhone。只在您發起 LINE 通話時操作 LINE，不讀取或儲存聊天內容。LINE 更新可能使自動操作失效。</string>
+</resources>
