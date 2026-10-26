@@ -44,7 +44,8 @@ final class AppShortcuts {
     }
     static void rememberHome(Activity a,ResolveInfo r){if(launch(a,r,Intent.CATEGORY_HOME))Store.prefs(a).edit().putString(HOME,component(r).flattenToString()).apply();}
     static boolean launch(Activity a,ResolveInfo r,String category){
+        boolean wasPaused=Store.flag(a,"externalIdlePaused");Store.prefs(a).edit().putBoolean("externalIdlePaused",true).apply();
         try{a.startActivity(new Intent(Intent.ACTION_MAIN).addCategory(category).setComponent(component(r)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));return true;}
-        catch(ActivityNotFoundException|SecurityException e){Ui.toast(a,"無法開啟，請重新選擇");return false;}
+        catch(ActivityNotFoundException|SecurityException e){Store.prefs(a).edit().putBoolean("externalIdlePaused",wasPaused).apply();Ui.toast(a,"無法開啟，請重新選擇");return false;}
     }
 }

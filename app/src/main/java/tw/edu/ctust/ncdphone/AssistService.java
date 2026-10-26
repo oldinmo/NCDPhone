@@ -28,7 +28,7 @@ public class AssistService extends AccessibilityService implements SensorEventLi
         if(stage>0)step();
         AccessibilityNodeInfo activeRoot=getRootInActiveWindow();
         String activePackage=activeRoot==null?foreground:String.valueOf(activeRoot.getPackageName());
-        if(Store.flag(AssistService.this,"globalIdle")&&!MainActivity.foregroundActive&&!calling()&&!activePackage.equals(getPackageName())&&!activePackage.equals("com.android.settings")&&now-lastInput>Store.prefs(AssistService.this).getInt("idleSeconds",60)*1000L)returnHome();
+        if(Store.flag(AssistService.this,"globalIdle")&&!Store.flag(AssistService.this,"externalIdlePaused")&&!MainActivity.foregroundActive&&!calling()&&!activePackage.equals(getPackageName())&&!activePackage.equals("com.android.settings")&&now-lastInput>Store.prefs(AssistService.this).getInt("idleSeconds",60)*1000L)returnHome();
         handler.postDelayed(this,1000);
     }};
     @Override protected void onServiceConnected(){instance=this;lastInput=SystemClock.elapsedRealtime();
