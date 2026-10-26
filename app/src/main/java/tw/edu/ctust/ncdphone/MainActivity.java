@@ -77,17 +77,17 @@ public class MainActivity extends Activity {
     void base(String title){saveSettings();caregiverField=null;secondsField=null;saveStatus=null;handler.removeCallbacks(rotate);if(weather!=null)weather.stop();if(ads!=null)ads.pause();activity();ignoreUntil=SystemClock.elapsedRealtime()+500;root=Ui.root(this);if(!title.isEmpty())Ui.add(root,Ui.text(this,title,28));}
     void home(){screen="home";page=0;base("");
         root.addView(ads.attach(),new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout info=new LinearLayout(this);root.addView(info,new LinearLayout.LayoutParams(-1,Ui.dp(this,180)));
-        LinearLayout clockPanel=new LinearLayout(this);clockPanel.setOrientation(LinearLayout.VERTICAL);info.addView(clockPanel,new LinearLayout.LayoutParams(0,-1,1));
-        clockText=Ui.text(this,"",60);clockText.setTypeface(null,android.graphics.Typeface.BOLD);clockText.setMaxLines(1);clockText.setAutoSizeTextTypeUniformWithConfiguration(24,80,2,android.util.TypedValue.COMPLEX_UNIT_SP);
-        clockPanel.addView(clockText,new LinearLayout.LayoutParams(-1,0,1));dateText=Ui.text(this,"",24);dateText.setMaxLines(2);dateText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);clockPanel.addView(dateText,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout weatherRow=new LinearLayout(this);weatherRow.setOrientation(LinearLayout.VERTICAL);weatherRow.setBackground(Ui.bg(Ui.BLUE));info.addView(weatherRow,new LinearLayout.LayoutParams(0,-1,1));
-        weatherIcon=new WeatherIcon(this);weatherRow.addView(weatherIcon,new LinearLayout.LayoutParams(-1,0,1));
-        weatherText=Ui.text(this,"正在取得當地氣象",24);weatherText.setMaxLines(3);weatherText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);weatherRow.addView(weatherText,new LinearLayout.LayoutParams(-1,0,1.4f));Ui.forgiving(weatherRow,this::weatherDetails);
-        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int available=v.getHeight()-v.getPaddingTop()-v.getPaddingBottom();int h=Math.round(available*.25f);if(h>0&&info.getLayoutParams().height!=h){info.getLayoutParams().height=h;info.requestLayout();}});
         LinearLayout bar=new LinearLayout(this);
         bar.addView(Ui.button(this,"⚙ 設定",Ui.BLUE,this::settings),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));
         bar.addView(Ui.button(this,"ⓘ 開發者",Ui.BLUE,this::about),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));Ui.add(root,bar);
+        LinearLayout info=new LinearLayout(this);root.addView(info,new LinearLayout.LayoutParams(-1,Ui.dp(this,180)));
+        LinearLayout clockPanel=new LinearLayout(this);clockPanel.setOrientation(LinearLayout.VERTICAL);clockPanel.setBackground(Ui.bg(android.graphics.Color.WHITE));info.addView(clockPanel,new LinearLayout.LayoutParams(0,-1,1));
+        clockText=Ui.text(this,"",60);clockText.setTextColor(Ui.NAVY);clockText.setTypeface(null,android.graphics.Typeface.BOLD);clockText.setMaxLines(1);clockText.setAutoSizeTextTypeUniformWithConfiguration(24,80,2,android.util.TypedValue.COMPLEX_UNIT_SP);
+        clockPanel.addView(clockText,new LinearLayout.LayoutParams(-1,0,1));dateText=Ui.text(this,"",24);dateText.setTextColor(Ui.NAVY);dateText.setMaxLines(2);dateText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);clockPanel.addView(dateText,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout weatherRow=new LinearLayout(this);weatherRow.setOrientation(LinearLayout.VERTICAL);weatherRow.setBackground(Ui.bg(android.graphics.Color.WHITE));info.addView(weatherRow,new LinearLayout.LayoutParams(0,-1,1));
+        weatherIcon=new WeatherIcon(this);weatherRow.addView(weatherIcon,new LinearLayout.LayoutParams(-1,0,1));
+        weatherText=Ui.text(this,"正在取得當地氣象",24);weatherText.setTextColor(Ui.NAVY);weatherText.setMaxLines(3);weatherText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);weatherRow.addView(weatherText,new LinearLayout.LayoutParams(-1,0,1.4f));Ui.forgiving(weatherRow,this::weatherDetails);
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int available=v.getHeight()-v.getPaddingTop()-v.getPaddingBottom();int h=Math.round(available*.20f);if(h>0&&info.getLayoutParams().height!=h){info.getLayoutParams().height=h;info.requestLayout();}});
         grid=new LinearLayout(this);grid.setOrientation(LinearLayout.VERTICAL);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         pages=Ui.text(this,"",18);Ui.add(root,pages);renderGrid();scheduleRotation();updateClock();if(resumed)weather.start(this::showWeather);
     }
