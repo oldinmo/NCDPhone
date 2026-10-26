@@ -19,6 +19,7 @@ public class AssistService extends AccessibilityService implements SensorEventLi
     long lastInput,lastAction,deadline;String foreground="",target="";int stage=0,missingCall=0;
     boolean sawCall, menuTestOnly; SensorManager sensors;
     final FlipDetector flip=new FlipDetector();
+    final LineCallGuard lineCallGuard=new LineCallGuard();
     static boolean lineBusy(){return instance!=null&&instance.stage>0;}
     boolean calling(){int m=getSystemService(AudioManager.class).getMode();return PhoneService.busy()||stage==6||m==AudioManager.MODE_IN_CALL||m==AudioManager.MODE_IN_COMMUNICATION;}
     final BroadcastReceiver wake=new BroadcastReceiver(){public void onReceive(Context c,Intent i){if(Store.flag(c,"wakeHome")&&!calling())handler.postDelayed(()->returnHome(),400);}};
@@ -32,12 +33,19 @@ public class AssistService extends AccessibilityService implements SensorEventLi
         handler.postDelayed(this,1000);
     }};
     @Override protected void onServiceConnected(){instance=this;lastInput=SystemClock.elapsedRealtime();
+        if(Store.flag(this,"lineCallProtected")){lineCallGuard.start();stage=6;target=Store.prefs(this).getString("lineCallTarget","");}
         IntentFilter f=new IntentFilter(Intent.ACTION_SCREEN_ON);f.addAction(Intent.ACTION_USER_PRESENT);if(Build.VERSION.SDK_INT>=33)registerReceiver(wake,f,Context.RECEIVER_NOT_EXPORTED);else registerReceiver(wake,f);
         sensors=getSystemService(SensorManager.class);Sensor sensor=sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);if(sensor!=null)sensors.registerListener(this,sensor,SensorManager.SENSOR_DELAY_NORMAL);handler.post(timer);
     }
     void returnHome(){if(SystemClock.elapsedRealtime()<settingsUntil||calling()||getSystemService(KeyguardManager.class).isKeyguardLocked())return;cancelPreparation();lastInput=SystemClock.elapsedRealtime();Ui.home(this);}
     void cancelPreparation(){if(stage>0&&stage!=6){stage=0;target="";Store.prefs(this).edit().putString("lineStatus","已取消 LINE 操作並返回主畫面").apply();}}
     void beginLine(String name){beginLine(name,false);}
+    void clearLineCall(){lineCallGuard.clear();stage=0;target="";Store.prefs(this).edit().remove("lineCallProtected").remove("lineCallTarget").apply();}
+    static void returnedToHome(Context c){
+        if(c.getSystemService(AudioManager.class).getMode()!=AudioManager.MODE_NORMAL)return;
+        if(instance!=null&&instance.stage==6)instance.clearLineCall();
+        else if(instance==null)Store.prefs(c).edit().remove("lineCallProtected").remove("lineCallTarget").apply();
+    }
     void beginLine(String name,boolean testOnly){target=name;menuTestOnly=testOnly;stage=1;sawCall=false;missingCall=0;lastAction=0;flip.reset();deadline=SystemClock.elapsedRealtime()+45000;Store.prefs(this).edit().putString("lineStatus","正在搜尋").apply();}
     void fail(String text){stage=0;target="";Store.prefs(this).edit().putString("lineStatus",text).apply();Toast.makeText(this,text,Toast.LENGTH_LONG).show();lastInput=SystemClock.elapsedRealtime();}
     @Override public void onAccessibilityEvent(AccessibilityEvent e){
@@ -49,12 +57,11 @@ public class AssistService extends AccessibilityService implements SensorEventLi
         long now=SystemClock.elapsedRealtime();if(now-lastAction<1200)return;
         AccessibilityNodeInfo root=getRootInActiveWindow();if(root==null||!LINE.contentEquals(root.getPackageName()))return;
         List<AccessibilityNodeInfo> nodes=new ArrayList<>();collect(root,nodes,0);
-        // Once a hangup control has been seen, disappearance plus leaving audio mode confirms completion.
+        // Only a verified return to this chat with inactive audio confirms completion.
         boolean end=has(nodes,"結束通話","掛斷","End call","Hang up");
         if(stage==6){
-            if(end){sawCall=true;missingCall=0;}
-            else if(sawCall&&getSystemService(AudioManager.class).getMode()==AudioManager.MODE_NORMAL){if(++missingCall>=3){stage=0;target="";Ui.home(this);}}
-            else if(!sawCall&&now>deadline){fail("未能確認 LINE 通話狀態，請手動操作或按 Home 返回");}
+            boolean audioActive=getSystemService(AudioManager.class).getMode()!=AudioManager.MODE_NORMAL;
+            if(lineCallGuard.observe(end,audioActive,chatTitleMatches(nodes))){clearLineCall();Ui.home(this);}
             lastAction=now;return;
         }
         if(stage==1){if(chatTitleMatches(nodes)){stage=5;}else if(searchEditor(nodes)!=null){stage=3;}else if(has(nodes,"搜尋","Search")){stage=2;}else if(clickChatTab(nodes)){stage=2;lastAction=now;}else if(byId(nodes,"header_up_button_bg")!=null){byId(nodes,"header_up_button_bg").performAction(AccessibilityNodeInfo.ACTION_CLICK);lastAction=now;}}
@@ -87,7 +94,7 @@ public class AssistService extends AccessibilityService implements SensorEventLi
         else if(stage==7){AccessibilityNodeInfo video=byId(nodes,"chat_ui_singlecall_layer_video_button");
             if(chatTitleMatches(nodes)&&video!=null&&video.isClickable()&&video.isEnabled()){
                 if(menuTestOnly){fail("LINE 通話選單測試成功，已找到視訊通話按鈕，未撥號");return;}
-                if(video.performAction(AccessibilityNodeInfo.ACTION_CLICK)){stage=6;deadline=now+45000;lastAction=now;}
+                if(video.performAction(AccessibilityNodeInfo.ACTION_CLICK)){lineCallGuard.start();Store.prefs(this).edit().putBoolean("lineCallProtected",true).putString("lineCallTarget",target).apply();stage=6;lastAction=now;}
             }
         }
     }
@@ -107,6 +114,6 @@ public class AssistService extends AccessibilityService implements SensorEventLi
     boolean clickUnique(List<AccessibilityNodeInfo> nodes,String...labels){List<AccessibilityNodeInfo> actions=new ArrayList<>();for(AccessibilityNodeInfo n:exact(nodes,labels)){AccessibilityNodeInfo a=clickable(n);if(a!=null&&!actions.contains(a))actions.add(a);}return actions.size()==1&&actions.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);}
     @Override public void onSensorChanged(SensorEvent e){if(!Store.flag(this,"flipHome")||calling()){flip.reset();return;}if(flip.update(e.values[2],SystemClock.elapsedRealtime()))returnHome();}
     @Override public void onAccuracyChanged(Sensor s,int a){}
-    @Override public void onInterrupt(){fail("操作協助已中斷");}
+    @Override public void onInterrupt(){if(stage!=6)fail("操作協助已中斷");}
     @Override public void onDestroy(){instance=null;handler.removeCallbacksAndMessages(null);if(sensors!=null)sensors.unregisterListener(this);try{unregisterReceiver(wake);}catch(Exception ignored){}super.onDestroy();}
 }

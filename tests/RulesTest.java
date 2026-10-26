@@ -34,6 +34,16 @@ public class RulesTest {
         check(CwaData.symbol("晴",yearEnd).equals("clearsky_night"));
         check(CwaData.symbol("陰",yearEnd).equals("cloudy"));
         check(CwaData.symbol("多雲",yearEnd).equals("partlycloudy_night"));
+        LineCallGuard guard=new LineCallGuard();guard.start();
+        for(int i=0;i<120;i++)check(!guard.observe(false,false,false)&&guard.active);
+        check(!guard.observe(false,false,true)&&guard.active);
+        check(!guard.observe(false,true,false)&&guard.active);
+        check(!guard.observe(false,false,false)&&guard.active);
+        check(!guard.observe(false,false,true));check(!guard.observe(false,false,true));
+        check(!guard.observe(true,false,false)&&guard.active);
+        check(!guard.observe(false,false,true));check(!guard.observe(false,false,true));
+        check(guard.observe(false,false,true)&&!guard.active);
+        guard.start();guard.clear();check(!guard.active);
         System.out.println(checks+" policy checks passed");
     }
 }
