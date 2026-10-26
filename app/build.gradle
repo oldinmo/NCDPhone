@@ -1,6 +1,8 @@
 plugins { id 'com.android.application' }
 def releaseVersion = new Properties()
 rootProject.file('version.properties').withInputStream { releaseVersion.load(it) }
+def adsConfig = new Properties()
+rootProject.file('ads.properties').withInputStream { adsConfig.load(it) }
 android {
     namespace 'tw.edu.ctust.ncdphone'
     compileSdk 36
@@ -10,6 +12,8 @@ android {
         targetSdk 35
         versionCode releaseVersion.versionCode.toInteger()
         versionName releaseVersion.versionName
+        manifestPlaceholders = [admobAppId: adsConfig.appId]
+        buildConfigField 'String', 'BANNER_AD_UNIT_ID', '"' + adsConfig.bannerId + '"'
     }
     buildFeatures { buildConfig true }
     signingConfigs {
@@ -24,4 +28,8 @@ android {
     }
     buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies {
+    implementation 'com.google.android.gms:play-services-ads:25.5.0'
+    implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
 }

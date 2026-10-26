@@ -24,7 +24,11 @@ public class MainActivity extends Activity {
     TextView saveStatus;
     LinearLayout root,grid; TextView pages;
     Store.Person editing; EditText name,phone,line; String photo="";
+    BannerController ads;LocalWeather weather;
+    TextView clockText,dateText,weatherText;WeatherIcon weatherIcon;
+    long weatherCheckAt;
     final Runnable tick=new Runnable(){public void run(){
+        if(resumed&&screen.equals("home")){updateClock();if(SystemClock.elapsedRealtime()>=weatherCheckAt){weatherCheckAt=SystemClock.elapsedRealtime()+60000;weather.refresh();}}
         if(resumed && !touching && !PhoneService.busy() && !AssistService.lineBusy()) {
             long idle=SystemClock.elapsedRealtime()-lastTouch;
             if(!screen.equals("home") && idle>Store.prefs(MainActivity.this).getInt("idleSeconds",60)*1000L) home();
@@ -38,15 +42,15 @@ public class MainActivity extends Activity {
         }
         handler.postDelayed(this,10000);
     }};
-    @Override public void onCreate(Bundle state){super.onCreate(state);lastTouch=SystemClock.elapsedRealtime();home();
+    @Override public void onCreate(Bundle state){super.onCreate(state);weather=new LocalWeather(this);ads=new BannerController(this);lastTouch=SystemClock.elapsedRealtime();home();ads.start();
         if(state!=null&&state.containsKey("editId")){Store.Person p=new Store.Person();p.id=state.getString("editId");p.name=state.getString("editName","");p.phone=state.getString("editPhone","");p.line=state.getString("editLine","");p.photo=state.getString("editPhoto","");edit(p);}
         else handleIntent(getIntent());}
     @Override protected void onSaveInstanceState(Bundle out){if(screen.equals("edit")){stashEdit();out.putString("editId",editing.id);out.putString("editName",editing.name);out.putString("editPhone",editing.phone);out.putString("editLine",editing.line);out.putString("editPhoto",editing.photo);}super.onSaveInstanceState(out);}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);if(!PhoneService.busy())home();handleIntent(i);}
     void handleIntent(Intent i){if(Intent.ACTION_DIAL.equals(i.getAction())){dialPad(i.getData()==null?"":i.getData().getSchemeSpecificPart());}}
-    @Override protected void onResume(){super.onResume();resumed=true;foregroundActive=true;touching=false;activity();AssistService.settingsUntil=0;handler.removeCallbacks(tick);handler.postDelayed(tick,1000);if(PhoneService.busy()){startActivity(new Intent(this,CallActivity.class));return;}if(screen.equals("home")){renderGrid();scheduleRotation();}}
-    @Override protected void onPause(){saveSettings();resumed=false;foregroundActive=false;touching=false;handler.removeCallbacks(tick);handler.removeCallbacks(rotate);super.onPause();}
-    @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);super.onDestroy();}
+    @Override protected void onResume(){super.onResume();resumed=true;foregroundActive=true;touching=false;activity();AssistService.settingsUntil=0;handler.removeCallbacks(tick);handler.postDelayed(tick,1000);if(PhoneService.busy()){startActivity(new Intent(this,CallActivity.class));return;}if(screen.equals("home")){renderGrid();scheduleRotation();updateClock();weather.start(this::showWeather);ads.resume();}}
+    @Override protected void onPause(){saveSettings();resumed=false;foregroundActive=false;touching=false;handler.removeCallbacks(tick);handler.removeCallbacks(rotate);weather.stop();ads.pause();super.onPause();}
+    @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);weather.destroy();ads.destroy();super.onDestroy();}
     void activity(){lastTouch=SystemClock.elapsedRealtime();if(AssistService.instance!=null)AssistService.instance.lastInput=lastTouch;}
     @Override public void onUserInteraction(){super.onUserInteraction();activity();}
     @Override public boolean dispatchKeyEvent(KeyEvent e){activity();return super.dispatchKeyEvent(e);}
@@ -70,14 +74,34 @@ public class MainActivity extends Activity {
     void turnPage(int direction){int count=Rules.pageCount(Store.people(this).size());page=Math.floorMod(page+direction,count);renderGrid();scheduleRotation();}
     @Override public void onBackPressed(){home();}
     void scheduleRotation(){handler.removeCallbacks(rotate);if(resumed&&screen.equals("home"))handler.postDelayed(rotate,10000);}
-    void base(String title){saveSettings();caregiverField=null;secondsField=null;saveStatus=null;handler.removeCallbacks(rotate);activity();ignoreUntil=SystemClock.elapsedRealtime()+500;root=Ui.root(this);Ui.add(root,Ui.text(this,title,28));}
-    void home(){screen="home";page=0;base("NCDPhone");
+    void base(String title){saveSettings();caregiverField=null;secondsField=null;saveStatus=null;handler.removeCallbacks(rotate);if(weather!=null)weather.stop();if(ads!=null)ads.pause();activity();ignoreUntil=SystemClock.elapsedRealtime()+500;root=Ui.root(this);if(!title.isEmpty())Ui.add(root,Ui.text(this,title,28));}
+    void home(){screen="home";page=0;base("");
+        root.addView(ads.attach(),new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout clockPanel=new LinearLayout(this);clockPanel.setOrientation(LinearLayout.VERTICAL);clockPanel.setPadding(0,Ui.dp(this,8),0,0);
+        clockText=Ui.text(this,"",100);clockText.setTypeface(null,android.graphics.Typeface.BOLD);clockText.setMaxLines(1);clockText.setAutoSizeTextTypeUniformWithConfiguration(48,128,2,android.util.TypedValue.COMPLEX_UNIT_SP);
+        clockPanel.addView(clockText,new LinearLayout.LayoutParams(-1,0,1));dateText=Ui.text(this,"",24);clockPanel.addView(dateText);
+        root.addView(clockPanel,new LinearLayout.LayoutParams(-1,Ui.dp(this,210)));
+        LinearLayout weatherRow=new LinearLayout(this);weatherRow.setGravity(Gravity.CENTER_VERTICAL);weatherRow.setBackground(Ui.bg(Ui.BLUE));
+        weatherIcon=new WeatherIcon(this);weatherRow.addView(weatherIcon,new LinearLayout.LayoutParams(0,-1,1));
+        weatherText=Ui.text(this,"正在取得當地氣象",22);weatherText.setMaxLines(3);weatherText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);weatherRow.addView(weatherText,new LinearLayout.LayoutParams(0,-1,3));
+        root.addView(weatherRow,new LinearLayout.LayoutParams(-1,Ui.dp(this,84)));Ui.forgiving(weatherRow,this::weatherDetails);
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int available=v.getHeight()-v.getPaddingTop()-v.getPaddingBottom();int h=Math.round(available*.30f);if(h>0&&clockPanel.getLayoutParams().height!=h){clockPanel.getLayoutParams().height=h;clockPanel.requestLayout();}});
         LinearLayout bar=new LinearLayout(this);
-        bar.addView(Ui.button(this,"⚙ 設定",Ui.BLUE,this::settings),new LinearLayout.LayoutParams(0,Ui.dp(this,60),1));
-        bar.addView(Ui.button(this,"ⓘ 開發者",Ui.BLUE,this::about),new LinearLayout.LayoutParams(0,Ui.dp(this,60),1));Ui.add(root,bar);
-        Ui.add(root,Ui.text(this,"點選聯絡人 · 左右滑動換頁",22));
+        bar.addView(Ui.button(this,"⚙ 設定",Ui.BLUE,this::settings),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));
+        bar.addView(Ui.button(this,"ⓘ 開發者",Ui.BLUE,this::about),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));Ui.add(root,bar);
         grid=new LinearLayout(this);grid.setOrientation(LinearLayout.VERTICAL);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
-        pages=Ui.text(this,"",18);Ui.add(root,pages);renderGrid();scheduleRotation();
+        pages=Ui.text(this,"",18);Ui.add(root,pages);renderGrid();scheduleRotation();updateClock();if(resumed)weather.start(this::showWeather);
+    }
+    void updateClock(){if(clockText==null)return;Date now=new Date();clockText.setText(new java.text.SimpleDateFormat("HH:mm",Locale.TAIWAN).format(now));dateText.setText(new java.text.SimpleDateFormat("M月d日 EEEE",Locale.TAIWAN).format(now));}
+    void showWeather(LocalWeather.Snapshot value,String status){if(!screen.equals("home")||weatherText==null)return;
+        if(value==null){weatherIcon.symbol(null);weatherText.setText(status);return;}
+        weatherIcon.symbol(value.symbol);String age=System.currentTimeMillis()-value.fetchedAt>3600000L?"（較早資料）":"";
+        weatherText.setText(value.district+"\n"+WeatherKind.label(value.symbol)+"  "+Math.round(value.temperature)+"°C\n"+(status.isEmpty()?"預報 · "+new java.text.SimpleDateFormat("HH:mm",Locale.TAIWAN).format(new Date(value.forecastAt))+age:status));
+    }
+    void weatherDetails(){
+        if(!weather.permission()){requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION},16);return;}
+        new AlertDialog.Builder(this).setTitle("當地氣象").setMessage("氣象預報：MET Norway（CC BY 4.0）\n行政區：Android 地理編碼\n\n首頁使用約略位置向 api.met.no 查詢氣象，座標取小數點後兩位；不會傳送聯絡人或照顧者電話。\n\n目前資料源不含颱風警報，颱風圖示已備妥但不會由風速推測；警報請以中央氣象署為準。")
+            .setPositiveButton("知道了",null).setNeutralButton("資料來源",(d,w)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://api.met.no/doc/License")))).show();
     }
     void renderGrid(){if(grid==null||!screen.equals("home"))return;grid.removeAllViews();ArrayList<Store.Person> list=Store.people(this);page%=Rules.pageCount(list.size());
         for(int r=0;r<2;r++){LinearLayout row=new LinearLayout(this);grid.addView(row,new LinearLayout.LayoutParams(-1,0,1));
@@ -89,16 +113,16 @@ public class MainActivity extends Activity {
                 tile.setContentDescription("聯絡 "+p.name);Ui.forgiving(tile,()->detail(p));
             }
         }
-        pages.setText(list.isEmpty()?"在設定中加入家人或照顧者":"第 "+(page+1)+" / "+Rules.pageCount(list.size())+" 頁"+(list.size()>4?" · 每 10 秒換頁":""));
+        pages.setText("第"+(page+1)+"/"+Rules.pageCount(list.size())+"頁");
     }
-    void detail(Store.Person p){screen="detail";base("聯絡家人");
+    void detail(Store.Person p){screen="detail";base("打電話");
         // Keep the call target at one quarter of the usable screen, with the photo taking remaining space.
         LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.VERTICAL);
         top.addView(Ui.photo(this,p),new LinearLayout.LayoutParams(-1,0,1));top.addView(Ui.text(this,p.name,32));top.addView(Ui.text(this,p.line.isEmpty()?"一般電話":"LINE 視訊通話",20));
         root.addView(top,new LinearLayout.LayoutParams(-1,0,1));
         View call=Ui.largeCall(this,()->{if(p.line.isEmpty())call(p.phone);else startLine(p.line);});root.addView(call,new LinearLayout.LayoutParams(-1,Ui.dp(this,160)));
-        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int height=Math.round((v.getHeight()-v.getPaddingTop()-v.getPaddingBottom())*.25f);if(height>0&&call.getLayoutParams().height!=height){call.getLayoutParams().height=height;call.requestLayout();}});
-        Ui.add(root,Ui.button(this,"返回主畫面",Ui.RED,this::home));
+        View back=Ui.button(this,"返回主畫面",Ui.RED,this::home);root.addView(back,new LinearLayout.LayoutParams(-1,Ui.dp(this,100)));
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int available=v.getHeight()-v.getPaddingTop()-v.getPaddingBottom();int height=Math.round(available*.25f),backHeight=Math.round(available*.15f);if(height>0&&call.getLayoutParams().height!=height){call.getLayoutParams().height=height;call.requestLayout();}if(backHeight>0&&back.getLayoutParams().height!=backHeight){back.getLayoutParams().height=backHeight;back.requestLayout();}});
     }
     void call(String number){
         if(!Rules.validPhone(number)){Ui.toast(this,"請輸入有效電話號碼");return;}
@@ -150,13 +174,10 @@ public class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT>=34)Ui.add(c,Ui.button(this,"設定／取消來電全螢幕通知",Ui.BLUE,()->openSettings(new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,Uri.parse("package:"+getPackageName())))));
         Ui.add(c,Ui.button(this,"授權狀態檢查",Ui.BLUE,()->{RoleManager rm=getSystemService(RoleManager.class);new AlertDialog.Builder(this).setTitle("目前狀態").setMessage("預設電話："+rm.isRoleHeld(RoleManager.ROLE_DIALER)+"\n預設桌面："+rm.isRoleHeld(RoleManager.ROLE_HOME)+"\n輔助操作："+(AssistService.instance!=null)+"\n背景定位："+(checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)==android.content.pm.PackageManager.PERMISSION_GRANTED)+"\n定位簡訊："+Store.prefs(this).getString("smsStatus","尚未觸發")).setPositiveButton("知道了",null).show();}));
         Ui.add(c,Ui.button(this,"數字撥號",Ui.BLUE,()->dialPad("")));
-        Ui.add(c,Ui.button(this,"測試 LINE 通話選單（不撥號）",Ui.BLUE,this::testLineSearch));
-        Ui.add(c,Ui.text(this,Store.prefs(this).getString("lineStatus","尚未測試 LINE 搜尋"),18));
-        Ui.add(c,Ui.button(this,"開啟系統設定",Ui.BLUE,()->openSettings(new Intent(Settings.ACTION_SETTINGS))));
+        Ui.add(c,Ui.button(this,"廣告隱私選項",Ui.BLUE,()->ads.privacy()));
         Ui.add(c,Ui.text(this,"LINE 請填寫聊天顯示名稱，名稱必須唯一。LINE 更新後須重新實機驗證。\n輔助操作與預設桌面負責返回主畫面；鎖定螢幕不會被繞過。側載 App 可能須在應用程式資訊允許受限制的設定。",20));
     }
     void toggle(LinearLayout c,String title,String key){Switch s=new Switch(this);s.setText(title);s.setTextSize(22);s.setTextColor(-1);s.setPadding(0,20,0,20);s.setChecked(Store.flag(this,key));s.setOnCheckedChangeListener((v,b)->Store.prefs(this).edit().putBoolean(key,b).apply());Ui.add(c,s);}
-    void testLineSearch(){ArrayList<String> names=new ArrayList<>();for(Store.Person p:Store.people(this))if(!p.line.isEmpty()&&!names.contains(p.line))names.add(p.line);if(names.isEmpty()){Ui.toast(this,"請先設定聯絡人的 LINE 顯示名稱");return;}new AlertDialog.Builder(this).setTitle("選擇通話選單測試對象（不撥號）").setItems(names.toArray(new String[0]),(d,w)->{if(AssistService.instance==null){Ui.toast(this,"請先啟用操作協助");return;}Intent i=getPackageManager().getLaunchIntentForPackage("jp.naver.line.android");if(i==null){Ui.toast(this,"尚未安裝 LINE");return;}AssistService.instance.beginLine(names.get(w),true);startActivity(i);}).setNegativeButton("取消",null).show();}
     void openSettings(Intent intent){saveSettings();AssistService.settingsUntil=SystemClock.elapsedRealtime()+30*60*1000L;try{startActivity(intent);}catch(ActivityNotFoundException e){startActivity(new Intent(Settings.ACTION_SETTINGS));}}
     void appSettings(){openSettings(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}
     void role(String role){RoleManager r=getSystemService(RoleManager.class);if(r.isRoleHeld(role)){openSettings(new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS));return;}if(r.isRoleAvailable(role)){AssistService.settingsUntil=SystemClock.elapsedRealtime()+30*60*1000L;startActivityForResult(r.createRequestRoleIntent(role),15);}else Ui.toast(this,"此裝置不支援此角色");}

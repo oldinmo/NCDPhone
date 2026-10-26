@@ -3,6 +3,13 @@ public class RulesTest {
     static int checks;
     static void check(boolean ok){checks++;if(!ok)throw new AssertionError("Check "+checks+" failed");}
     public static void main(String[] args){
+        check(WeatherKind.district("舊社里","北屯區","臺中市").equals("北屯區"));check(WeatherKind.district("舊社里",null,null).isEmpty());
+        check(WeatherKind.kind("clearsky_day").equals("clear"));check(WeatherKind.kind("clearsky_night").equals("clear_night"));
+        check(WeatherKind.kind("partlycloudy_day").equals("partly"));check(WeatherKind.kind("cloudy").equals("cloudy"));
+        check(WeatherKind.kind("heavyrainandthunder").equals("thunder"));check(WeatherKind.kind("heavyrain").equals("heavy_rain"));
+        check(WeatherKind.kind("sleetshowers_night").equals("sleet"));check(WeatherKind.kind("lightsnowshowersandthunder_day").equals("snow_thunder"));
+        check(WeatherKind.kind("fog").equals("fog"));check(WeatherKind.kind("unknown_wind").equals("unknown"));
+        check(WeatherKind.kind("typhoon").equals("typhoon"));check(WeatherKind.kind(null).equals("unknown"));
         FlipDetector flip=new FlipDetector();check(!flip.update(-9,0));check(!flip.update(9,200));
         check(!flip.update(-9,1000));check(flip.update(0,1800));check(!flip.update(9,1900));
         check(!flip.update(-9,2000));check(flip.update(9,70000));
