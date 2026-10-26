@@ -30,6 +30,7 @@ public class CallActivity extends Activity {
             Ui.add(root,Ui.button(this,"數字鍵盤",Ui.BLUE,()->keypad(call)));
             if(call.getState()==Call.STATE_HOLDING)Ui.add(root,Ui.button(this,"恢復通話",Ui.GREEN,call::unhold));
         }
+        if(call.getState()==Call.STATE_RINGING)addCallGap(root);
         root.addView(Ui.callControl(this,false,()->{if(call.getState()==Call.STATE_RINGING)call.reject(false,null);else call.disconnect();}),new LinearLayout.LayoutParams(-1,Ui.dp(this,130)));
     }
     @Override protected void onSaveInstanceState(Bundle out){out.putInt("previewState",previewState);super.onSaveInstanceState(out);}
@@ -45,7 +46,17 @@ public class CallActivity extends Activity {
         Ui.add(root,Ui.text(this,person==null?"測試來電":person.name,32));
         if(previewState==Call.STATE_RINGING)root.addView(Ui.callControl(this,true,answer),new LinearLayout.LayoutParams(-1,Ui.dp(this,130)));
         else Ui.add(root,Ui.text(this,"已模擬接聽，沒有建立真實通話",22));
+        if(previewState==Call.STATE_RINGING)addCallGap(root);
         root.addView(Ui.callControl(this,false,()->{Ui.home(this);finish();}),new LinearLayout.LayoutParams(-1,Ui.dp(this,130)));
+    }
+    void addCallGap(LinearLayout root){
+        android.view.View gap=new android.view.View(this);
+        gap.setImportantForAccessibility(android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        root.addView(gap,new LinearLayout.LayoutParams(-1,0));
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{
+            int height=Math.round((v.getHeight()-v.getPaddingTop()-v.getPaddingBottom())*.05f);
+            if(height>0&&gap.getLayoutParams().height!=height){gap.getLayoutParams().height=height;gap.requestLayout();}
+        });
     }
     String status(int s){switch(s){case Call.STATE_ACTIVE:return "通話中";case Call.STATE_HOLDING:return "通話保留中";case Call.STATE_DISCONNECTING:return "正在掛斷";default:return "正在連線";}}
     void keypad(Call c){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);for(String row:new String[]{"123","456","789","*0#"}){LinearLayout r=new LinearLayout(this);for(char ch:row.toCharArray())r.addView(Ui.button(this,""+ch,Ui.BLUE,()->{c.playDtmfTone(ch);new Handler(Looper.getMainLooper()).postDelayed(c::stopDtmfTone,200);}),new LinearLayout.LayoutParams(0,-2,1));box.addView(r);}new AlertDialog.Builder(this).setTitle("通話數字鍵盤").setView(box).setPositiveButton("關閉",null).show();}
