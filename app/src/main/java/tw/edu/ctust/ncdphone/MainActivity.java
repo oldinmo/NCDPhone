@@ -91,7 +91,7 @@ public class MainActivity extends Activity {
         grid=new LinearLayout(this);grid.setOrientation(LinearLayout.VERTICAL);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         pages=Ui.text(this,"",18);Ui.add(root,pages);renderGrid();scheduleRotation();updateClock();if(resumed)weather.start(this::showWeather);
     }
-    void updateClock(){if(clockText==null)return;Date now=new Date();clockText.setText(new java.text.SimpleDateFormat("HH:mm",Locale.TAIWAN).format(now));dateText.setText(new java.text.SimpleDateFormat("M月d日\nEEEE",Locale.TAIWAN).format(now));}
+    void updateClock(){if(clockText==null)return;Date now=new Date();clockText.setText(new java.text.SimpleDateFormat("a h:mm",Locale.TAIWAN).format(now));dateText.setText(new java.text.SimpleDateFormat("M月d日\nEEEE",Locale.TAIWAN).format(now));}
     void showWeather(LocalWeather.Snapshot value,String status){if(!screen.equals("home")||weatherText==null)return;
         if(value==null){weatherIcon.symbol(null);weatherText.setText(status);return;}
         weatherIcon.symbol(value.symbol);weatherText.setText(value.district+"\n"+value.description+"\n"+Math.round(value.temperature)+"°C");
