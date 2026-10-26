@@ -2,7 +2,7 @@
 
 為高齡者設計的高對比 Android 通訊介面。開發者：劉崇汎，中臺科技大學高齡健康照護系。
 
-目前版本 **0.1.3 測試版**，Android 10（API 29）以上。請先完成實機驗收再交由長者使用。
+目前版本 **0.1.4 測試版**，Android 10（API 29）以上。請先完成實機驗收再交由長者使用。
 
 ## 下載
 
@@ -55,12 +55,14 @@ $env:JAVA_HOME='C:\Users\User\.jdks\jbr-21.0.11'
 
 不上架仍受 Android 系統權限、背景啟動、定位、通知及鎖屏限制。LINE 沒有在本專案使用的官方自動視訊 API；本版用 AccessibilityService 以可見文字逐步操作，不使用座標盲點或模糊姓名比對。LINE 版本或語系不同可能無法操作，會逾時停止；通話結束以掛斷控制消失及音訊模式共同判定，仍需實機確認。
 
-聯絡人與照片只存於手機 App 私有目錄，停用系統備份；不記錄 LINE 聊天內容。本版具有網路權限：首頁氣象會將四捨五入到小數點後兩位的經緯度傳至 MET Norway（api.met.no），只在首頁前景查詢並遵守快取期限；行政區由 Android Geocoder 查詢，可能使用手機系統的地理編碼服務。服務端會收到連線 IP。廣告使用 Google Mobile Ads SDK，依適用地區透過 UMP 顯示同意選項，可在設定開啟廣告隱私選項。聯絡人與照片不提供給氣象服務。定位透過電信簡訊交給指定照顧者，可能產生費用；來電顯示號碼不能提供密碼等級的身分驗證，因此定位回傳應由手機使用者知情啟用。
+聯絡人與照片只存於手機 App 私有目錄，停用系統備份；不記錄 LINE 聊天內容。本版具有網路權限：首頁氣象改用中央氣象署公開鄉鎮預報，只下載所在縣市資料，不將經緯度傳給氣象署，也不再查詢 MET Norway。行政區由 Android Geocoder 查詢，可能使用手機系統的地理編碼服務。服務端會收到連線 IP。廣告使用 Google Mobile Ads SDK，依適用地區透過 UMP 顯示同意選項，可在設定開啟廣告隱私選項。聯絡人與照片不提供給氣象服務。定位透過電信簡訊交給指定照顧者，可能產生費用；來電顯示號碼不能提供密碼等級的身分驗證，因此定位回傳應由手機使用者知情啟用。
 
 參考：[Android 預設電話](https://developer.android.com/develop/connectivity/telecom/dialer-app)、[背景 Activity 啟動限制](https://developer.android.com/guide/components/activities/secure-bal)、[AccessibilityService](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService)。
 
 ## 首頁時間、氣象與廣告
 
-首頁頂端為 AdMob 橫幅，時間與日期約佔可用高度 30%；氣象顯示行政區、天氣圖示及溫度。預報資料來源：[MET Norway](https://api.met.no/)，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。圖示涵蓋晴、雲、雨、雪、雷雨、霧及日夜差異；颱風圖示已備妥，但目前來源不含颱風警報，不自動判定颱風。點氣象區可查看來源及定位說明。
+時間／日期／星期在左，氣象在右，合計約佔可用高度 25%。氣象只顯示行政區、繁體中文天氣、溫度及圖示，無預報時間。來源為中央氣象署，詳見 [氣象資料說明](docs/WEATHER.md)。颱風圖示已備妥，但尚未串接警報。
 
-目前 ads.properties 使用 Google 官方測試 App ID 與橫幅單元 ID，尚未接上正式廣告。收到發行者提供的兩個正式 ID 後替換 appId 與 bannerId 並重新建置。測試時必須使用測試廣告／測試裝置，不點擊正式廣告。
+數字撥號頁的空白區加入大型 0–9、＊、＃鍵盤，以及清除、刪除、綠色撥號和返回按鈕，不必叫出系統鍵盤。仍保留有效電話檢查，不允許直接執行 USSD／MMI 控制碼。
+
+ads.properties 已套用發布者帳號建立的 NCDPhone App ID 與首頁橫幅單元 ID。AdMob 仍要求連結受支援商店並通過審核才能正常放送廣告，GitHub APK 發佈不等同於商店審核完成。Debug 使用官方測試 ID；本機 release 驗證可設定 Gradle 屬性 ncdTestAds，測試 APK 不得當作正式版本發佈。不要點擊正式廣告。

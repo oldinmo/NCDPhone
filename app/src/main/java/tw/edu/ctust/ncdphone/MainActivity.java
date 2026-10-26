@@ -77,31 +77,29 @@ public class MainActivity extends Activity {
     void base(String title){saveSettings();caregiverField=null;secondsField=null;saveStatus=null;handler.removeCallbacks(rotate);if(weather!=null)weather.stop();if(ads!=null)ads.pause();activity();ignoreUntil=SystemClock.elapsedRealtime()+500;root=Ui.root(this);if(!title.isEmpty())Ui.add(root,Ui.text(this,title,28));}
     void home(){screen="home";page=0;base("");
         root.addView(ads.attach(),new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout clockPanel=new LinearLayout(this);clockPanel.setOrientation(LinearLayout.VERTICAL);clockPanel.setPadding(0,Ui.dp(this,8),0,0);
-        clockText=Ui.text(this,"",100);clockText.setTypeface(null,android.graphics.Typeface.BOLD);clockText.setMaxLines(1);clockText.setAutoSizeTextTypeUniformWithConfiguration(48,128,2,android.util.TypedValue.COMPLEX_UNIT_SP);
-        clockPanel.addView(clockText,new LinearLayout.LayoutParams(-1,0,1));dateText=Ui.text(this,"",24);clockPanel.addView(dateText);
-        root.addView(clockPanel,new LinearLayout.LayoutParams(-1,Ui.dp(this,210)));
-        LinearLayout weatherRow=new LinearLayout(this);weatherRow.setGravity(Gravity.CENTER_VERTICAL);weatherRow.setBackground(Ui.bg(Ui.BLUE));
-        weatherIcon=new WeatherIcon(this);weatherRow.addView(weatherIcon,new LinearLayout.LayoutParams(0,-1,1));
-        weatherText=Ui.text(this,"正在取得當地氣象",22);weatherText.setMaxLines(3);weatherText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);weatherRow.addView(weatherText,new LinearLayout.LayoutParams(0,-1,3));
-        root.addView(weatherRow,new LinearLayout.LayoutParams(-1,Ui.dp(this,84)));Ui.forgiving(weatherRow,this::weatherDetails);
-        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int available=v.getHeight()-v.getPaddingTop()-v.getPaddingBottom();int h=Math.round(available*.30f);if(h>0&&clockPanel.getLayoutParams().height!=h){clockPanel.getLayoutParams().height=h;clockPanel.requestLayout();}});
+        LinearLayout info=new LinearLayout(this);root.addView(info,new LinearLayout.LayoutParams(-1,Ui.dp(this,180)));
+        LinearLayout clockPanel=new LinearLayout(this);clockPanel.setOrientation(LinearLayout.VERTICAL);info.addView(clockPanel,new LinearLayout.LayoutParams(0,-1,1));
+        clockText=Ui.text(this,"",60);clockText.setTypeface(null,android.graphics.Typeface.BOLD);clockText.setMaxLines(1);clockText.setAutoSizeTextTypeUniformWithConfiguration(24,80,2,android.util.TypedValue.COMPLEX_UNIT_SP);
+        clockPanel.addView(clockText,new LinearLayout.LayoutParams(-1,0,1));dateText=Ui.text(this,"",24);dateText.setMaxLines(2);dateText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);clockPanel.addView(dateText,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout weatherRow=new LinearLayout(this);weatherRow.setOrientation(LinearLayout.VERTICAL);weatherRow.setBackground(Ui.bg(Ui.BLUE));info.addView(weatherRow,new LinearLayout.LayoutParams(0,-1,1));
+        weatherIcon=new WeatherIcon(this);weatherRow.addView(weatherIcon,new LinearLayout.LayoutParams(-1,0,1));
+        weatherText=Ui.text(this,"正在取得當地氣象",24);weatherText.setMaxLines(3);weatherText.setAutoSizeTextTypeUniformWithConfiguration(16,26,1,android.util.TypedValue.COMPLEX_UNIT_SP);weatherRow.addView(weatherText,new LinearLayout.LayoutParams(-1,0,1.4f));Ui.forgiving(weatherRow,this::weatherDetails);
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int available=v.getHeight()-v.getPaddingTop()-v.getPaddingBottom();int h=Math.round(available*.25f);if(h>0&&info.getLayoutParams().height!=h){info.getLayoutParams().height=h;info.requestLayout();}});
         LinearLayout bar=new LinearLayout(this);
         bar.addView(Ui.button(this,"⚙ 設定",Ui.BLUE,this::settings),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));
         bar.addView(Ui.button(this,"ⓘ 開發者",Ui.BLUE,this::about),new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));Ui.add(root,bar);
         grid=new LinearLayout(this);grid.setOrientation(LinearLayout.VERTICAL);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         pages=Ui.text(this,"",18);Ui.add(root,pages);renderGrid();scheduleRotation();updateClock();if(resumed)weather.start(this::showWeather);
     }
-    void updateClock(){if(clockText==null)return;Date now=new Date();clockText.setText(new java.text.SimpleDateFormat("HH:mm",Locale.TAIWAN).format(now));dateText.setText(new java.text.SimpleDateFormat("M月d日 EEEE",Locale.TAIWAN).format(now));}
+    void updateClock(){if(clockText==null)return;Date now=new Date();clockText.setText(new java.text.SimpleDateFormat("HH:mm",Locale.TAIWAN).format(now));dateText.setText(new java.text.SimpleDateFormat("M月d日\nEEEE",Locale.TAIWAN).format(now));}
     void showWeather(LocalWeather.Snapshot value,String status){if(!screen.equals("home")||weatherText==null)return;
         if(value==null){weatherIcon.symbol(null);weatherText.setText(status);return;}
-        weatherIcon.symbol(value.symbol);String age=System.currentTimeMillis()-value.fetchedAt>3600000L?"（較早資料）":"";
-        weatherText.setText(value.district+"\n"+WeatherKind.label(value.symbol)+"  "+Math.round(value.temperature)+"°C\n"+(status.isEmpty()?"預報 · "+new java.text.SimpleDateFormat("HH:mm",Locale.TAIWAN).format(new Date(value.forecastAt))+age:status));
+        weatherIcon.symbol(value.symbol);weatherText.setText(value.district+"\n"+value.description+"\n"+Math.round(value.temperature)+"°C");
     }
     void weatherDetails(){
         if(!weather.permission()){requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION},16);return;}
-        new AlertDialog.Builder(this).setTitle("當地氣象").setMessage("氣象預報：MET Norway（CC BY 4.0）\n行政區：Android 地理編碼\n\n首頁使用約略位置向 api.met.no 查詢氣象，座標取小數點後兩位；不會傳送聯絡人或照顧者電話。\n\n目前資料源不含颱風警報，颱風圖示已備妥但不會由風速推測；警報請以中央氣象署為準。")
-            .setPositiveButton("知道了",null).setNeutralButton("資料來源",(d,w)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://api.met.no/doc/License")))).show();
+        new AlertDialog.Builder(this).setTitle("當地氣象").setMessage("資料來源：交通部中央氣象署鄉鎮天氣預報\n行政區：Android 地理編碼\n\n只向中央氣象署下載所在縣市的公開預報，經緯度不傳給氣象署。每 30 分鐘更新，過期資料不顯示；無資料時不改用國外預報。\n\n本頁不提供颱風警報，請以中央氣象署發布為準。")
+            .setPositiveButton("知道了",null).setNeutralButton("資料來源",(d,w)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.cwa.gov.tw/V8/C/W/Town/Town.html")))).show();
     }
     void renderGrid(){if(grid==null||!screen.equals("home"))return;grid.removeAllViews();ArrayList<Store.Person> list=Store.people(this);page%=Rules.pageCount(list.size());
         for(int r=0;r<2;r++){LinearLayout row=new LinearLayout(this);grid.addView(row,new LinearLayout.LayoutParams(-1,0,1));
@@ -182,7 +180,14 @@ public class MainActivity extends Activity {
     void appSettings(){openSettings(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}
     void role(String role){RoleManager r=getSystemService(RoleManager.class);if(r.isRoleHeld(role)){openSettings(new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS));return;}if(r.isRoleAvailable(role)){AssistService.settingsUntil=SystemClock.elapsedRealtime()+30*60*1000L;startActivityForResult(r.createRequestRoleIntent(role),15);}else Ui.toast(this,"此裝置不支援此角色");}
     void permissions(){ArrayList<String> list=new ArrayList<>(Arrays.asList(Manifest.permission.CALL_PHONE,Manifest.permission.READ_PHONE_STATE,Manifest.permission.SEND_SMS,Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION));if(Build.VERSION.SDK_INT>=33)list.add(Manifest.permission.POST_NOTIFICATIONS);list.removeIf(p->checkSelfPermission(p)==PackageManager.PERMISSION_GRANTED);if(list.isEmpty()){appSettings();return;}requestPermissions(list.toArray(new String[0]),10);}
-    void dialPad(String number){screen="dial";LinearLayout c=form("數字撥號");EditText e=field(c,"電話號碼",number,3);Ui.add(c,Ui.button(this,"☎ 打電話",Ui.GREEN,()->call(e.getText().toString())));}
+    void dialPad(String number){screen="dial";base("數字撥號");
+        EditText e=new EditText(this);e.setText(number);e.setTextSize(32);e.setSingleLine(true);e.setInputType(android.text.InputType.TYPE_CLASS_PHONE);e.setShowSoftInputOnFocus(false);e.setTextColor(android.graphics.Color.BLACK);e.setBackgroundColor(android.graphics.Color.WHITE);e.setContentDescription("電話號碼");Ui.add(root,e);
+        LinearLayout keys=new LinearLayout(this);keys.setOrientation(LinearLayout.VERTICAL);root.addView(keys,new LinearLayout.LayoutParams(-1,0,1));
+        String[] values={"1","2","3","4","5","6","7","8","9","*","0","#"};
+        for(int r=0;r<4;r++){LinearLayout row=new LinearLayout(this);keys.addView(row,new LinearLayout.LayoutParams(-1,0,1));for(int c=0;c<3;c++){String digit=values[r*3+c];Button key=Ui.button(this,digit,Ui.BLUE,()->{if(e.length()<32){int at=Math.max(0,e.getSelectionStart());e.getText().insert(at,digit);}});key.setTextSize(36);row.addView(key,new LinearLayout.LayoutParams(0,-1,1));}}
+        LinearLayout editRow=new LinearLayout(this);editRow.addView(Ui.button(this,"清除",Ui.BLUE,()->e.setText("")),new LinearLayout.LayoutParams(0,-2,1));editRow.addView(Ui.button(this,"⌫ 刪除",Ui.BLUE,()->{int at=e.getSelectionStart();if(at>0)e.getText().delete(at-1,at);}),new LinearLayout.LayoutParams(0,-2,1));Ui.add(root,editRow);
+        Ui.add(root,Ui.button(this,"☎ 打電話",Ui.GREEN,()->call(e.getText().toString())));Ui.add(root,Ui.button(this,"返回主畫面",Ui.RED,this::home));e.setSelection(e.length());
+    }
     void contacts(){screen="contacts";LinearLayout c=form("通訊錄");Ui.add(c,Ui.button(this,"＋ 新增聯絡人",Ui.GREEN,()->edit(new Store.Person())));Ui.add(c,Ui.button(this,"從手機電話簿引用",Ui.BLUE,()->{
         if(checkSelfPermission(Manifest.permission.READ_CONTACTS)!=android.content.pm.PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.READ_CONTACTS},11);Ui.toast(this,"授權後請再按引用");return;}
         startActivityForResult(new Intent(Intent.ACTION_PICK,ContactsContract.CommonDataKinds.Phone.CONTENT_URI),20);

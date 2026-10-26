@@ -13,7 +13,7 @@ android {
         versionCode releaseVersion.versionCode.toInteger()
         versionName releaseVersion.versionName
         manifestPlaceholders = [admobAppId: adsConfig.appId]
-        buildConfigField 'String', 'BANNER_AD_UNIT_ID', '"' + adsConfig.bannerId + '"'
+        buildConfigField 'String', 'BANNER_AD_UNIT_ID', '"' + (project.hasProperty('ncdTestAds') ? 'ca-app-pub-3940256099942544/9214589741' : adsConfig.bannerId) + '"'
     }
     buildFeatures { buildConfig true }
     signingConfigs {
@@ -26,7 +26,13 @@ android {
             }
         }
     }
-    buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
+    buildTypes {
+        debug {
+            manifestPlaceholders = [admobAppId: 'ca-app-pub-3940256099942544~3347511713']
+            buildConfigField 'String', 'BANNER_AD_UNIT_ID', '"ca-app-pub-3940256099942544/9214589741"'
+        }
+        release { signingConfig signingConfigs.release; minifyEnabled false }
+    }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 dependencies {

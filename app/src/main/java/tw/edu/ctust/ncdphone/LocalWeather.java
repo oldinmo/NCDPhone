@@ -14,19 +14,19 @@ import java.util.*;
 import java.util.concurrent.*;
 import javax.net.ssl.HttpsURLConnection;
 
-/** User-authorized foreground weather lookup; MET receives coordinates rounded to two decimals. */
+/** Foreground CWA forecast lookup; no coordinates are sent to the weather provider. */
 final class LocalWeather {
     interface Listener {void changed(Snapshot value,String status);}
     static final class Snapshot {
-        final String district,symbol;final double temperature;final long forecastAt,fetchedAt;
-        Snapshot(String d,String s,double t,long at,long fetched){district=d;symbol=s;temperature=t;forecastAt=at;fetchedAt=fetched;}
-        String json()throws JSONException{return new JSONObject().put("district",district).put("symbol",symbol).put("temp",temperature).put("at",forecastAt).put("fetched",fetchedAt).toString();}
-        static Snapshot parse(String text)throws JSONException{JSONObject o=new JSONObject(text);return new Snapshot(o.getString("district"),o.getString("symbol"),o.getDouble("temp"),o.getLong("at"),o.getLong("fetched"));}
+        final String district,symbol,description;final double temperature;final long forecastAt,fetchedAt;
+        Snapshot(String d,String s,String desc,double t,long at,long fetched){district=d;symbol=s;description=desc;temperature=t;forecastAt=at;fetchedAt=fetched;}
+        String json()throws JSONException{return new JSONObject().put("district",district).put("symbol",symbol).put("description",description).put("temp",temperature).put("at",forecastAt).put("fetched",fetchedAt).toString();}
+        static Snapshot parse(String text)throws JSONException{JSONObject o=new JSONObject(text);return new Snapshot(o.getString("district"),o.getString("symbol"),o.getString("description"),o.getDouble("temp"),o.getLong("at"),o.getLong("fetched"));}
     }
     final Context app;final Handler main=new Handler(Looper.getMainLooper());final ExecutorService workers=Executors.newCachedThreadPool();
-    Listener listener;Snapshot cached;boolean active,busy;int generation;long nextAttempt;
+    Listener listener;Snapshot cached;volatile boolean active;boolean busy;volatile int generation;long nextAttempt;
     LocationListener locationListener;
-    LocalWeather(Context c){app=c.getApplicationContext();try{cached=Snapshot.parse(Store.prefs(app).getString("weatherCache",""));}catch(Exception ignored){}nextAttempt=Store.prefs(app).getInt("weatherFormat",0)==1?Store.prefs(app).getLong("weatherExpires",0):0;}
+    LocalWeather(Context c){app=c.getApplicationContext();try{cached=Snapshot.parse(Store.prefs(app).getString("cwaCache",""));}catch(Exception ignored){}nextAttempt=Store.prefs(app).getInt("cwaFormat",0)==1?Store.prefs(app).getLong("cwaExpires",0):0;}
     void start(Listener l){listener=l;active=true;refresh();}
     void stop(){active=false;listener=null;generation++;busy=false;stopLocation();main.removeCallbacksAndMessages(null);}
     void destroy(){stop();workers.shutdownNow();}
@@ -35,7 +35,7 @@ final class LocalWeather {
     void refresh(){
         if(!active)return;
         if(!permission()){emit("點此允許定位顯示氣象");return;}
-        if(cached!=null&&System.currentTimeMillis()-cached.forecastAt>6*3600000L)cached=null;
+        if(cached!=null&&System.currentTimeMillis()-cached.forecastAt>3*3600000L)cached=null;
         if(busy){emit(cached==null?"正在更新氣象":"");return;}
         if(System.currentTimeMillis()<nextAttempt){emit(cached==null?"氣象暫無資料，稍後重試":"");return;}
         LocationManager lm=app.getSystemService(LocationManager.class);
@@ -57,36 +57,39 @@ final class LocalWeather {
     void fetch(Location location,int token){
         stopLocation();workers.execute(()->{
             try{
-                String district=district(location);
+                String area=CwaData.name(district(location));
                 if(!active||token!=generation)return;
-                String key=String.format(Locale.US,"%.2f,%.2f",location.getLatitude(),location.getLongitude());String[] xy=key.split(",");
-                URL url=new URL("https://api.met.no/weatherapi/locationforecast/2.0/compact?lat="+xy[0]+"&lon="+xy[1]);
+                String[] town=findTown(area);
+                if(town==null){main.post(()->failed(token,"此行政區暫無官方氣象"));return;}
+                URL url=new URL("https://www.cwa.gov.tw/Data/js/3hr/ChartData_3hr_T_"+town[0]+".js");
                 HttpsURLConnection connection=(HttpsURLConnection)url.openConnection();connection.setConnectTimeout(12000);connection.setReadTimeout(12000);connection.setInstanceFollowRedirects(false);
                 connection.setRequestProperty("User-Agent","NCDPhone/"+BuildConfig.VERSION_NAME+" github.com/oldinmo/NCDPhone");
-                String modified=Store.prefs(app).getString("weatherModified","");String oldKey=Store.prefs(app).getString("weatherGrid","");
-                if(key.equals(oldKey)&&!modified.isEmpty())connection.setRequestProperty("If-Modified-Since",modified);
-                String body;long expires;String lastModified;
-                try{
-                    long storedExpiry=Store.prefs(app).getLong("weatherExpires",0);
-                    boolean freshResponse=key.equals(oldKey)&&storedExpiry>System.currentTimeMillis()&&!Store.prefs(app).getString("weatherResponse","").isEmpty();
-                    int code=freshResponse?304:connection.getResponseCode();expires=freshResponse?storedExpiry:Math.max(System.currentTimeMillis()+15*60000L+(long)(Math.random()*120000),connection.getHeaderFieldDate("Expires",0));lastModified=freshResponse?modified:connection.getHeaderField("Last-Modified");
-                    if(code==304)body=Store.prefs(app).getString("weatherResponse","");
-                    else if(code==200||code==203){try(InputStream in=connection.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1){if(out.size()+n>524288)throw new IOException("Response too large");out.write(buffer,0,n);}body=out.toString(StandardCharsets.UTF_8.name());}}
-                    else throw new IOException("Weather HTTP "+code);
-                }finally{connection.disconnect();}
-                Snapshot value=parseForecast(body,district,System.currentTimeMillis());
-                final String response=body,modifiedValue=lastModified;
-                main.post(()->{if(!active||token!=generation)return;cached=value;busy=false;nextAttempt=expires;try{Store.prefs(app).edit().putInt("weatherFormat",1).putString("weatherCache",value.json()).putString("weatherResponse",response).putString("weatherGrid",key).putString("weatherModified",modifiedValue==null?modified:modifiedValue).putLong("weatherExpires",expires).apply();}catch(JSONException ignored){}emit("");});
+                String body;
+                try{if(connection.getResponseCode()!=200)throw new IOException("Weather unavailable");try(InputStream in=connection.getInputStream()){body=read(in,2097152);}}finally{connection.disconnect();}
+                Snapshot value=parseForecast(body,town[1],town[2],System.currentTimeMillis());
+                main.post(()->{if(!active||token!=generation)return;cached=value;busy=false;nextAttempt=System.currentTimeMillis()+30*60000L;try{Store.prefs(app).edit().putInt("cwaFormat",1).putString("cwaCache",value.json()).putLong("cwaExpires",nextAttempt).apply();}catch(JSONException ignored){}emit("");});
             }catch(Exception e){main.post(()->failed(token,"氣象更新失敗，請確認網路"));}
         });
     }
-    static Snapshot parseForecast(String body,String district,long now)throws JSONException {
-        JSONArray series=new JSONObject(body).getJSONObject("properties").getJSONArray("timeseries");JSONObject chosen=null;long at=0;
-        for(int i=0;i<series.length();i++){JSONObject point=series.getJSONObject(i);long time=Instant.parse(point.getString("time")).toEpochMilli();if(chosen==null||time<=now){chosen=point;at=time;}if(time>now)break;}
-        if(chosen==null||Math.abs(now-at)>6*3600000L)throw new JSONException("No current forecast");
-        JSONObject data=chosen.getJSONObject("data"),period=data.optJSONObject("next_1_hours");if(period==null)period=data.optJSONObject("next_6_hours");
-        String symbol=period==null?"unknown":period.getJSONObject("summary").getString("symbol_code");double temp=data.getJSONObject("instant").getJSONObject("details").getDouble("air_temperature");
-        if(!Double.isFinite(temp)||temp < -100||temp>70)throw new JSONException("Invalid temperature");return new Snapshot(district,symbol,temp,at,now);
+    static String read(InputStream in,int limit)throws IOException{ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1){if(out.size()+n>limit)throw new IOException("Response too large");out.write(buffer,0,n);}return out.toString(StandardCharsets.UTF_8.name());}
+    String[] findTown(String area)throws Exception{
+        String counties,towns;try(InputStream in=app.getAssets().open("cwa-counties.js")){counties=read(in,100000);}try(InputStream in=app.getAssets().open("cwa-towns.js")){towns=read(in,200000);}
+        JSONArray cities=new JSONArray(CwaData.literal(counties,"Info_County"));JSONObject all=new JSONObject(CwaData.literal(towns,"Info_Town"));
+        for(int i=0;i<cities.length();i++){JSONObject city=cities.getJSONObject(i);String cname=city.getJSONObject("Name").getString("C"),cid=city.getString("ID");JSONArray places=all.getJSONArray(cid);
+            for(int j=0;j<places.length();j++){JSONObject place=places.getJSONObject(j);String full=cname+place.getJSONObject("Name").getString("C");if(CwaData.name(full).equals(area))return new String[]{cid,place.getString("ID"),full};}
+        }return null;
+    }
+    static Snapshot parseForecast(String body,String town,String district,long now)throws JSONException {
+        long updated=CwaData.updated(body);if(now-updated>6*3600000L||updated-now>3600000L)throw new JSONException("Stale weather feed");
+        JSONArray times=new JSONObject(CwaData.literal(body,"Time_3hr")).getJSONArray("C");
+        int selected=-1;long at=0;
+        for(int i=0;i<times.length();i++){long t=CwaData.time(times.getString(i),updated);if(t<=now&&t>=at){selected=i;at=t;}}
+        if(selected<0||now-at>3*3600000L)throw new JSONException("No current forecast");
+        JSONObject data=new JSONObject(CwaData.literal(body,"TempArray_3hr")).getJSONObject(town);
+        double temp=data.getJSONObject("C").getJSONArray("T").getDouble(selected);
+        String desc=data.getJSONObject("Wx").getJSONArray("C").getJSONArray(selected).getString(1);
+        if(!Double.isFinite(temp)||temp < -100||temp>70||desc.isEmpty())throw new JSONException("Invalid forecast");
+        return new Snapshot(district,CwaData.symbol(desc,at),desc,temp,at,now);
     }
     String district(Location location){
         Future<String> f=workers.submit(()->{
