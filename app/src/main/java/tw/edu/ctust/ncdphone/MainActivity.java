@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
         else handleIntent(getIntent());}
     @Override protected void onSaveInstanceState(Bundle out){if(screen.equals("edit")){stashEdit();out.putString("editId",editing.id);out.putString("editName",editing.name);out.putString("editPhone",editing.phone);out.putString("editLine",editing.line);out.putString("editPhoto",editing.photo);}super.onSaveInstanceState(out);}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);if(!PhoneService.busy())home();handleIntent(i);}
-    void handleIntent(Intent i){if(Intent.ACTION_DIAL.equals(i.getAction())){dialPad(i.getData()==null?"":i.getData().getSchemeSpecificPart());}}
+    void handleIntent(Intent i){if(i.getBooleanExtra("previewIncoming",false)){i.removeExtra("previewIncoming");previewIncoming();return;}if(Intent.ACTION_DIAL.equals(i.getAction())){dialPad(i.getData()==null?"":i.getData().getSchemeSpecificPart());}}
     @Override protected void onResume(){super.onResume();resumed=true;foregroundActive=true;touching=false;activity();AssistService.settingsUntil=0;handler.removeCallbacks(tick);handler.postDelayed(tick,1000);if(PhoneService.busy()){startActivity(new Intent(this,CallActivity.class));return;}if(screen.equals("home")){renderGrid();scheduleRotation();updateClock();weather.start(this::showWeather);ads.resume();}}
     @Override protected void onPause(){saveSettings();resumed=false;foregroundActive=false;touching=false;handler.removeCallbacks(tick);handler.removeCallbacks(rotate);weather.stop();ads.pause();super.onPause();}
     @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);weather.destroy();ads.destroy();super.onDestroy();}
@@ -134,7 +134,8 @@ public class MainActivity extends Activity {
         AssistService.instance.beginLine(target);startActivity(i);
     }
     LinearLayout form(String title){base(title);ScrollView s=new ScrollView(this);LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);s.addView(content);root.addView(s,new LinearLayout.LayoutParams(-1,0,1));Ui.add(root,Ui.button(this,"返回主畫面",Ui.BLUE,this::home));return content;}
-    void about(){screen="about";LinearLayout c=form("開發者資訊");Ui.add(c,Ui.text(this,"劉崇汎\n中臺科技大學\n高齡健康照護系",30));Ui.add(c,Ui.text(this,"版本 "+BuildConfig.VERSION_NAME+" ("+BuildConfig.VERSION_CODE+")",24));}
+    void previewIncoming(){startActivity(new Intent(this,CallActivity.class).putExtra("previewIncoming",true));}
+    void about(){screen="about";LinearLayout c=form("開發者資訊");Ui.add(c,Ui.text(this,"劉崇汎\n中臺科技大學\n高齡健康照護系",30));Ui.add(c,Ui.text(this,"版本 "+BuildConfig.VERSION_NAME+" ("+BuildConfig.VERSION_CODE+")",24));Ui.add(c,Ui.button(this,"預覽來電畫面（不撥號）",Ui.BLUE,this::previewIncoming));}
     EditText field(LinearLayout c,String title,String value,int type){Ui.add(c,Ui.text(this,title,22));EditText e=new EditText(this);e.setText(value);e.setTextSize(24);e.setSingleLine(true);e.setInputType(type);e.setTextColor(android.graphics.Color.BLACK);e.setBackgroundColor(android.graphics.Color.WHITE);e.setPadding(14,14,14,14);e.setContentDescription(title);Ui.add(c,e);watch(e,this::activity);return e;}
     void watch(EditText e,Runnable action){e.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){action.run();}public void afterTextChanged(android.text.Editable s){}});}
     void saveSettings(){
