@@ -2,6 +2,7 @@ package tw.edu.ctust.ncdphone;
 
 /** Pure policy rules also exercised by the standalone JVM checks. */
 final class Rules {
+    static boolean sameLineName(String a,String b){return a!=null&&b!=null&&!a.trim().isEmpty()&&a.trim().equalsIgnoreCase(b.trim());}
     static String normalize(String value) {
         String s=value==null?"":value.replaceAll("[^0-9+]", "");
         if(s.startsWith("00886")) s="0"+s.substring(5);

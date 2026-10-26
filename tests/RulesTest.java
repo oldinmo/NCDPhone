@@ -3,6 +3,7 @@ public class RulesTest {
     static int checks;
     static void check(boolean ok){checks++;if(!ok)throw new AssertionError("Check "+checks+" failed");}
     public static void main(String[] args){
+        check(Rules.sameLineName("Cathy tu","Cathy Tu"));check(!Rules.sameLineName("Cathy","Cathy Tu"));check(!Rules.sameLineName(""," "));
         check(Rules.samePhone("0912-345-678","+886912345678"));
         check(Rules.samePhone("02 1234 5678","00886212345678"));
         check(!Rules.samePhone("",""));check(!Rules.samePhone("0912345678","0992345678"));

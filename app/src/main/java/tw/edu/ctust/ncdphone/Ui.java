@@ -27,11 +27,18 @@ final class Ui {
         if(color==RED){b.setText(text.replace("☎","").trim());b.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_hangup,0,0,0);b.setPadding(dp(c,24),8,dp(c,24),8);}
         forgiving(b,action); return b;
     }
+    static View largeCall(Context c,Runnable action){
+        LinearLayout tile=new LinearLayout(c);tile.setOrientation(LinearLayout.VERTICAL);tile.setGravity(Gravity.CENTER);tile.setBackground(bg(GREEN));tile.setPadding(dp(c,16),dp(c,12),dp(c,16),dp(c,12));
+        ImageView icon=new ImageView(c);icon.setImageResource(R.drawable.ic_phone);icon.setScaleType(ImageView.ScaleType.FIT_CENTER);icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        tile.addView(icon,new LinearLayout.LayoutParams(-1,0,1));
+        TextView label=text(c,"打電話",56);label.setTypeface(null,Typeface.BOLD);label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);tile.addView(label,new LinearLayout.LayoutParams(-1,0,1));
+        tile.setContentDescription("打電話");forgiving(tile,action);return tile;
+    }
     // Execute once on release, tolerate long holds and movement inside bounds; suppress duplicate taps.
     static void forgiving(View v,Runnable action) {
         final long[] last={-2000}; final boolean[] tracking={false},inside={false};
         v.setClickable(true); v.setFocusable(true);
-        v.setOnClickListener(w->{long now=SystemClock.elapsedRealtime(); if(now-last[0]<850)return;last[0]=now;action.run();});
+        v.setOnClickListener(w->{if(w.getContext() instanceof MainActivity)((MainActivity)w.getContext()).activity();long now=SystemClock.elapsedRealtime(); if(now-last[0]<850)return;last[0]=now;action.run();});
         v.setOnTouchListener((w,e)->{
             switch(e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN: tracking[0]=true;inside[0]=true;w.setPressed(true);return true;
